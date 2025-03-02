@@ -14,171 +14,177 @@ TWITTER_API_SECRET = os.getenv('TWITTER_API_SECRET')
 TWITTER_ACCESS_TOKEN = os.getenv('TWITTER_ACCESS_TOKEN')
 TWITTER_ACCESS_TOKEN_SECRET = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
 
-# OpenWeatherMap API key
+# API Keys
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 def get_aqi_openweather(latitude, longitude):
     """Fetch AQI data from OpenWeatherMap API"""
     url = "http://api.openweathermap.org/data/2.5/air_pollution"
-    
     params = {
         'lat': latitude,
         'lon': longitude,
         'appid': OPENWEATHER_API_KEY
     }
-    
     try:
         response = requests.get(url, params=params)
-        
-        # Print the status code and response for debugging
         print(f"Status code: {response.status_code}")
-        print(f"Response content: {response.text}")
-        
-        # Check if request was successful
+
         if response.status_code != 200:
-            print(f"API error: Status code {response.status_code}")
+            print("Failed to fetch AQI")
             return None
-        
+
         data = response.json()
-        
-        # Check if 'list' key exists in response
         if 'list' not in data or not data['list']:
-            print(f"Unexpected API response format: {data}")
+            print("Invalid API response")
             return None
         
-        # OpenWeatherMap uses a different AQI scale (1-5)
         aqi_index = data['list'][0]['main']['aqi']
-        
-        # Get pollutant values
         pollutants = data['list'][0]['components']
         pm25 = pollutants.get('pm2_5', 0)
         pm10 = pollutants.get('pm10', 0)
-        
-        # Return both the index and raw values
+
         return {
             'aqi_index': aqi_index,
             'pm25': pm25,
             'pm10': pm10
         }
     except Exception as e:
-        print(f"Error fetching AQI: {e}")
-        print(f"Full exception: {repr(e)}")
+        print(f"Exception: {e}")
         return None
 
 def get_aqi_category(aqi_index, pm25):
-    """Convert OpenWeatherMap AQI (1-5) to category and US EPA equivalent"""
-    # OpenWeatherMap AQI: 1=Good, 2=Fair, 3=Moderate, 4=Poor, 5=Very Poor
-    
+    """Convert AQI index into readable category"""
     if aqi_index == 1:
-        category = "Good"
-        emoji = "🟢"
-        # Approximate EPA AQI value based on PM2.5
-        epa_aqi = min(int(pm25 * 4.8), 50)
+        return {'category': 'Good', 'emoji': '🟢', 'epa_aqi': int(pm25 * 4.8)}
     elif aqi_index == 2:
-        category = "Fair"
-        emoji = "🟢"
-        epa_aqi = min(50 + int((pm25 - 10) * 4.8), 100)
+        return {'category': 'Fair', 'emoji': '🟢', 'epa_aqi': 50 + int((pm25 - 10) * 4.8)}
     elif aqi_index == 3:
-        category = "Moderate"
-        emoji = "🟡"
-        epa_aqi = min(100 + int((pm25 - 25) * 1.8), 150)
+        return {'category': 'Moderate', 'emoji': '🟡', 'epa_aqi': 100 + int((pm25 - 25) * 1.8)}
     elif aqi_index == 4:
-        category = "Poor"
-        emoji = "🟠"
-        epa_aqi = min(150 + int((pm25 - 50) * 1.8), 200)
-    else:  # aqi_index == 5
-        category = "Very Poor"
-        emoji = "🔴"
-        epa_aqi = min(200 + int((pm25 - 75) * 2.8), 300)
+        return {'category': 'Poor', 'emoji': '🟠', 'epa_aqi': 150 + int((pm25 - 50) * 1.8)}
+    elif aqi_index == 5:
+        return {'category': 'Very Poor', 'emoji': '🔴', 'epa_aqi': 200 + int((pm25 - 75) * 2.8)}
+    else:
+        return {'category': 'Unknown', 'emoji': '❓', 'epa_aqi': 0}
+
+def generate_gemini_care_message(aqi_category):
+    """Generate care message using Gemini API"""
+    url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent"
     
-    return {
-        'category': category,
-        'emoji': emoji,
-        'epa_aqi': epa_aqi
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    params = {
+        "key": GEMINI_API_KEY
+    }
+    
+    prompt = f"Write a short, helpful health tip for air quality status '{aqi_category}' in exactly one sentence for the purpose of tweeting. Include practical advice like wearing masks, staying indoors, or hydration as appropriate for this air quality level. Also add 3 hashtags related to it"
+    
+    body = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 60
+        }
     }
 
+    try:
+        response = requests.post(url, headers=headers, params=params, json=body)
+        
+        if response.status_code == 200:
+            result = response.json()
+            # Check the structure of the response
+            if "candidates" in result and len(result["candidates"]) > 0:
+                candidate = result["candidates"][0]
+                if "content" in candidate and "parts" in candidate["content"]:
+                    parts = candidate["content"]["parts"]
+                    if len(parts) > 0 and "text" in parts[0]:
+                        message = parts[0]["text"].strip()
+                        # Remove quotes if present
+                        message = message.strip('"\'')
+                        return message
+        
+        print(f"Invalid Gemini API response: {response.text}")
+        return get_fallback_message(aqi_category)
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+        return get_fallback_message(aqi_category)
+
+def get_fallback_message(aqi_category):
+    """Return a fallback message based on AQI category"""
+    fallback_messages = {
+        "Good": "Enjoy the fresh air and outdoor activities today! 🌱",
+        "Fair": "Air quality is acceptable - sensitive groups should monitor conditions. 🌤️",
+        "Moderate": "Consider limiting prolonged outdoor exertion if you're sensitive to air pollution. 😷",
+        "Poor": "Wear a mask outdoors and limit strenuous activities to protect your lungs. 😷",
+        "Very Poor": "Stay indoors if possible and use air purifiers to minimize health risks. ⚠️",
+        "Unknown": "Stay hydrated and be mindful of your surroundings today. 💧"
+    }
+    
+    return fallback_messages.get(aqi_category, "Take care of your respiratory health today. 💙")
+
 def post_tweet(aqi_data, location_name):
-    """Post AQI update to Twitter"""
-    # Create Twitter API client
+    """Post Tweet with Care Message"""
     client = tweepy.Client(
         consumer_key=TWITTER_API_KEY,
         consumer_secret=TWITTER_API_SECRET,
         access_token=TWITTER_ACCESS_TOKEN,
-        access_token_secret=TWITTER_ACCESS_TOKEN_SECRET,
-        bearer_token=None
+        access_token_secret=TWITTER_ACCESS_TOKEN_SECRET
     )
-    
-    # Get AQI category information
+
     aqi_info = get_aqi_category(aqi_data['aqi_index'], aqi_data['pm25'])
-    
-    # Create tweet text
+    care_message = generate_gemini_care_message(aqi_info['category'])
+
     current_time = datetime.now().strftime("%I:%M %p")
-    tweet = f"Air Quality Index for {location_name} at {current_time}:\n\n"
-    tweet += f"Status: {aqi_info['category']} {aqi_info['emoji']}\n"
-    tweet += f"US EPA Equivalent: ~{aqi_info['epa_aqi']}\n"
-    tweet += f"PM2.5: {aqi_data['pm25']:.1f} μg/m³\n"
-    tweet += f"PM10: {aqi_data['pm10']:.1f} μg/m³"
-    
+    tweet = (
+        f"Air Quality Index for {location_name} at {current_time}:\n\n"
+        f"Status: {aqi_info['category']} {aqi_info['emoji']}\n"
+        f"Air Quality Index: ~{aqi_info['epa_aqi']}\n"
+        f"PM2.5: {aqi_data['pm25']:.1f} μg/m³\n"
+        f"PM10: {aqi_data['pm10']:.1f} μg/m³\n\n"
+        f"{care_message}"
+    )
+
     try:
-        # Uncomment this line to actually post the tweet
-        result = client.create_tweet(text=tweet)
-        print(f"Tweet posted with ID: {result.data['id']}")
-        
-        # For testing, just print the tweet
-        print(f"Tweet would be posted: {tweet}")
+        # result = client.create_tweet(text=tweet)
+        print(f"Tweet would be posted:\n{tweet}")
         return True
     except Exception as e:
         print(f"Error posting tweet: {e}")
-        print(f"Full exception: {repr(e)}")
         return False
 
-# Location configuration - customize as needed
+def check_env_vars():
+    required_vars = ['TWITTER_API_KEY', 'TWITTER_API_SECRET', 'TWITTER_ACCESS_TOKEN', 'TWITTER_ACCESS_TOKEN_SECRET', 'OPENWEATHER_API_KEY', 'GEMINI_API_KEY']
+    missing = [var for var in required_vars if not os.getenv(var)]
+
+    if missing:
+        print(f"Missing Environment Variables: {', '.join(missing)}")
+        return False
+    return True
+
 LOCATION = {
     'name': 'Delhi',
     'latitude': 28.704060,
     'longitude': 77.102493
 }
 
-# Check environment variables
-def check_env_vars():
-    required_vars = [
-        'TWITTER_API_KEY', 
-        'TWITTER_API_SECRET', 
-        'TWITTER_ACCESS_TOKEN', 
-        'TWITTER_ACCESS_TOKEN_SECRET', 
-        'OPENWEATHER_API_KEY'
-    ]
-    
-    missing = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing.append(var)
-    
-    if missing:
-        print(f"Missing required environment variables: {', '.join(missing)}")
-        print("Please ensure these are set in your .env file")
-        return False
-    
-    print("All required environment variables are set")
-    return True
-
-# Main execution
 if __name__ == "__main__":
-    # Check environment variables
     if not check_env_vars():
         exit(1)
-        
-    # Fetch AQI data
-    print(f"Fetching AQI data for {LOCATION['name']}...")
-    aqi_data = get_aqi_openweather(LOCATION['latitude'], LOCATION['longitude'])
     
+    aqi_data = get_aqi_openweather(LOCATION['latitude'], LOCATION['longitude'])
     if aqi_data:
-        print("AQI data fetched successfully.")
-        # Post to Twitter
-        success = post_tweet(aqi_data, LOCATION['name'])
-        if success:
-            print("Process completed successfully.")
-        else:
-            print("Failed to post tweet.")
+        print("AQI Data Fetched")
+        post_tweet(aqi_data, LOCATION['name'])
     else:
-        print("Failed to fetch AQI data.")
+        print("Failed to fetch AQI data")
