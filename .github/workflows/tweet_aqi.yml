@@ -34,4 +34,4 @@ jobs:
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
 
       - name: Run bot
-        run: python aqi_bot.py
+        run: python main.py
