@@ -156,7 +156,7 @@ def post_tweet(aqi_data, location_name):
     )
 
     try:
-        # result = client.create_tweet(text=tweet)
+        result = client.create_tweet(text=tweet)
         print(f"Tweet would be posted:\n{tweet}")
         return True
     except Exception as e:
