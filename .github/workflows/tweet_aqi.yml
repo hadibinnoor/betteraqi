@@ -26,12 +26,27 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "TWITTER_API_KEY=${{ secrets.TWITTER_API_KEY }}" > .env
-          echo "TWITTER_API_SECRET=${{ secrets.TWITTER_API_SECRET }}" >> .env
-          echo "TWITTER_ACCESS_TOKEN=${{ secrets.TWITTER_ACCESS_TOKEN }}" >> .env
-          echo "TWITTER_ACCESS_TOKEN_SECRET=${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}" >> .env
-          echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" >> .env
+          # Common API keys
+          echo "OPENWEATHER_API_KEY=${{ secrets.OPENWEATHER_API_KEY }}" > .env
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          
+          # Delhi Twitter credentials
+          echo "DELHI_TWITTER_API_KEY=${{ secrets.DELHI_TWITTER_API_KEY }}" >> .env
+          echo "DELHI_TWITTER_API_SECRET=${{ secrets.DELHI_TWITTER_API_SECRET }}" >> .env
+          echo "DELHI_TWITTER_ACCESS_TOKEN=${{ secrets.DELHI_TWITTER_ACCESS_TOKEN }}" >> .env
+          echo "DELHI_TWITTER_ACCESS_TOKEN_SECRET=${{ secrets.DELHI_TWITTER_ACCESS_TOKEN_SECRET }}" >> .env
+          
+          # Bangalore Twitter credentials
+          echo "BANGALORE_TWITTER_API_KEY=${{ secrets.BANGALORE_TWITTER_API_KEY }}" >> .env
+          echo "BANGALORE_TWITTER_API_SECRET=${{ secrets.BANGALORE_TWITTER_API_SECRET }}" >> .env
+          echo "BANGALORE_TWITTER_ACCESS_TOKEN=${{ secrets.BANGALORE_TWITTER_ACCESS_TOKEN }}" >> .env
+          echo "BANGALORE_TWITTER_ACCESS_TOKEN_SECRET=${{ secrets.BANGALORE_TWITTER_ACCESS_TOKEN_SECRET }}" >> .env
+          
+          # Mumbai Twitter credentials
+          echo "MUMBAI_TWITTER_API_KEY=${{ secrets.MUMBAI_TWITTER_API_KEY }}" >> .env
+          echo "MUMBAI_TWITTER_API_SECRET=${{ secrets.MUMBAI_TWITTER_API_SECRET }}" >> .env
+          echo "MUMBAI_TWITTER_ACCESS_TOKEN=${{ secrets.MUMBAI_TWITTER_ACCESS_TOKEN }}" >> .env
+          echo "MUMBAI_TWITTER_ACCESS_TOKEN_SECRET=${{ secrets.MUMBAI_TWITTER_ACCESS_TOKEN_SECRET }}" >> .env
 
       - name: Run bot
         run: python main.py
